@@ -44,6 +44,6 @@ typedef struct RXinfoDescr {
 
 uint16_t packetSize(uint8_t lField);
 uint16_t byteSize(uint16_t packetSize);
-uint16_t decodeRXBytesTmode(uint8_t* pByte, uint8_t* pPacket, uint16_t packetSize);
+uint16_t decodeRXBytesTmode(const uint8_t* pByte, uint8_t* pPacket, uint16_t packetSize);
 
 #endif

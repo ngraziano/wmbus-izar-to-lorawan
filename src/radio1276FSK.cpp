@@ -115,7 +115,7 @@ void RadioSx1276FSK::init() {
   hal.write_reg(RegImageCal, 0x02); // Temperature change threshold = 10°C
 
   // freq
-  uint64_t const frf = ((uint64_t)t1_freq << 19) / xtal_freq;
+  constexpr uint64_t const frf = ((uint64_t)t1_freq << 19) / xtal_freq;
   hal.write_reg(RegFrfMsb, (uint8_t)(frf >> 16));
   hal.write_reg(RegFrfMid, (uint8_t)(frf >> 8));
   hal.write_reg(RegFrfLsb, (uint8_t)(frf >> 0));
