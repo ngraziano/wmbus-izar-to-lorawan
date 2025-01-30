@@ -1,8 +1,15 @@
-# Sample of LMICPP-Arduino for Arduino Pro mini with deepsleep at 2Mhz and with custom bootloader
+# Lora proxy for izar wmbus
 
-*Warning* : Not standart bootloader **must** be installed to handle watchdog and low voltage
+This project listen to izar frame every 5 minute and transmit flags and current meter index by lorawan.
+When you meter is far away from your network, it allow to use lorawan.
+
+The SX1276 is used both for wmbus (in FSK mode) and for lorawan, it's allow to have a simple circuit 
+with just a SX1276 connected to a microcontroller.
+
+Only work with IZAR frame (length harcoded) but can be adapted for other wmbus frame
 
 Tested with Arduino Pro Mini and RFM95 on EU868 frequencies.
+*Warning* : Not standart bootloader **must** be installed to handle watchdog and low voltage
 
 ## Usage
 
@@ -21,6 +28,10 @@ constexpr char const appEui[] = "70B3D5XXXXXXXXXX";
 constexpr char const devEui[] = "XXXXXXXXXXXXXXXX";
 // Application key in string format.
 constexpr char const appKey[] = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+
+// The id of the meter (you can find it by watching the start of decoded payload (from byte 4))
+constexpr std::array<uint8_t, 6> my_meter = {0xAA, 0xAA, 0xAA,
+                                               0xAA, 0x98, 0x01};
 
 ```
 

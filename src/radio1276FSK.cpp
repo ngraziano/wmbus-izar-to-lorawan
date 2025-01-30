@@ -246,6 +246,9 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"),
                 buffer[0], buffer[1], buffer[2], buffer[3], buffer[4],
                 buffer[5], buffer[6], buffer[7]);
+    PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"),
+                buffer[8], buffer[9], buffer[10], buffer[11], buffer[12],
+                buffer[13], buffer[14], buffer[15]);
     if (decode_result == PACKET_OK) {
       isFind =
           printAndExtractIZAR(buffer.begin(), buffer.size(), meter_id, result);
