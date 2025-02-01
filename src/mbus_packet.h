@@ -10,9 +10,11 @@
 #define MAN_VER         0x07
 #define PACKET_CI_FIELD 0x78
 
-#define PACKET_OK              0
-#define PACKET_CODING_ERROR    1
-#define PACKET_CRC_ERROR       2
+enum class PacketDecodeResult : uint8_t {
+    OK = 0,
+    CODING_ERROR = 1,
+    CRC_ERROR = 2,
+};
 
 //----------------------------------------------------------------------------------
 // Functions
@@ -44,6 +46,6 @@ typedef struct RXinfoDescr {
 
 uint16_t packetSize(uint8_t lField);
 uint16_t byteSize(uint16_t packetSize);
-uint16_t decodeRXBytesTmode(const uint8_t* pByte, uint8_t* pPacket, uint16_t packetSize);
+PacketDecodeResult decodeRXBytesTmode(const uint8_t* pByte, uint8_t* pPacket, uint16_t packetSize);
 
 #endif
