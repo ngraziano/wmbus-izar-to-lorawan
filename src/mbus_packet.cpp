@@ -83,9 +83,8 @@ uint16_t decodeRXBytesTmode(const uint8_t *pByte, uint8_t *pPacket,
   uint16_t bytesRemaining = packetSize;
   uint16_t bytesEncoded;
   DecodeResult decodingStatus;
-  uint16_t crc = 0;      // Current CRC value
-  bool crcField = false; // Current fields are a CRC field
-
+  CrcCalc crc = CrcCalc(); // Current CRC value
+  bool crcField = false;   // Current fields are a CRC field
 
   // Decode packet
   while (bytesRemaining) {
@@ -101,7 +100,7 @@ uint16_t decodeRXBytesTmode(const uint8_t *pByte, uint8_t *pPacket,
       bytesEncoded += 1;
 
       // The last byte the low byte of the CRC field
-      if (((~crc) & 0xFF) != *(pPacket))
+      if (!crc.checLow(*pPacket))
         return (PACKET_CRC_ERROR);
     }
 
@@ -126,27 +125,27 @@ uint16_t decodeRXBytesTmode(const uint8_t *pByte, uint8_t *pPacket,
 
       // Check CRC field
       if (crcField) {
-        if (((~crc) & 0xFF) != *(pPacket + 1))
-          return (PACKET_CRC_ERROR);
-        if ((((~crc) >> 8) & 0xFF) != *pPacket)
-          return (PACKET_CRC_ERROR);
+        if (!crc.checLow(*(pPacket + 1)))
+          return PACKET_CRC_ERROR;
+        if (!crc.checHigh(*pPacket))
+          return PACKET_CRC_ERROR;
 
         crcField = false;
-        crc = 0;
+        crc.reset();
       }
 
       // If 1 bytes left, the field is the high byte of the CRC
       else if (bytesRemaining == 1) {
-        crc = crcCalc(crc, *(pPacket));
+        crc.pushData(*(pPacket));
         // The packet byte is a CRC-field
-        if ((((~crc) >> 8) & 0xFF) != *(pPacket + 1))
+        if (!crc.checHigh(*(pPacket + 1)))
           return (PACKET_CRC_ERROR);
       }
 
       // Perform CRC calculation
       else {
-        crc = crcCalc(crc, *(pPacket));
-        crc = crcCalc(crc, *(pPacket + 1));
+        crc.pushData(*(pPacket));
+        crc.pushData(*(pPacket + 1));
       }
 
       pByte += 3;
