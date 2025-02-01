@@ -7,6 +7,6 @@ enum class DecodeResult : uint8_t {
     ERROR,
 };
 
-DecodeResult decode3outof6(const uint8_t *encodedData, uint8_t *decodedData, uint8_t lastByte);
+DecodeResult decode3outof6(const uint8_t *encodedData, uint8_t *decodedData, bool lastByte);
 
 #endif

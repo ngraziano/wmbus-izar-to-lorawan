@@ -1,9 +1,10 @@
 #include "3outof6.h"
+ #include <array>
 
 // clang-format off
 // Table for decoding a 6-bit "3 out of 6" encoded data into 4-bit
 // data. The value 0xFF indicates invalid "3 out of 6" coding
-static uint8_t decodeTab[64] = {0xFF,  //  "3 out of 6" encoded 0x00 decoded
+static std::array<uint8_t,64> decodeTab = {0xFF,  //  "3 out of 6" encoded 0x00 decoded
                                 0xFF,  //  "3 out of 6" encoded 0x01 decoded
                                 0xFF,  //  "3 out of 6" encoded 0x02 decoded
                                 0xFF,  //  "3 out of 6" encoded 0x03 decoded
@@ -73,9 +74,9 @@ static uint8_t decodeTab[64] = {0xFF,  //  "3 out of 6" encoded 0x00 decoded
 // data value. If only 2 byte left to decoded,
 // the postamble sequence is ignored
 DecodeResult decode3outof6(const uint8_t *encodedData, uint8_t *decodedData,
-                           uint8_t lastByte) {
+                           bool lastByte) {
 
-  uint8_t data[4];
+  std::array<uint8_t,4> data;
 
   // - Perform decoding on the input data -
   if (!lastByte) {
