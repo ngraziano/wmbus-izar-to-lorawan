@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-bool decodeDiehlLfsr(const uint8_t *const origin, uint8_t *const decoded,
-                     const uint16_t size, uint32_t key);
+bool decodeDiehlLfsr(const uint8_t *const origin, uint8_t *const decoded, const uint16_t size, uint32_t key);
 
 void printHex(const uint8_t *packet, const uint8_t length) {
   for (uint8_t i = 0; i < length; i++) {
@@ -16,8 +15,7 @@ void printHex(const uint8_t *packet, const uint8_t length) {
 
 // assume only one frame
 // Print and extract data with a lot of hardcoded values
-bool printAndExtractIZAR(const uint8_t *packet, const uint8_t length,
-                         const std::array<uint8_t, 6> &wantedId,
+bool printAndExtractIZAR(const uint8_t *packet, const uint8_t length, const std::array<uint8_t, 6> &wantedId,
                          std::array<uint8_t, 7> &result) {
   // L field
   if (packet[0] != 0x19 && length != 30) {
@@ -72,8 +70,7 @@ bool printAndExtractIZAR(const uint8_t *packet, const uint8_t length,
   return std::equal(wantedId.cbegin(), wantedId.cend(), packet + 4);
 }
 
-bool decodeDiehlLfsr(const uint8_t *const origin, uint8_t *const decoded,
-                     const uint16_t size, uint32_t key) {
+bool decodeDiehlLfsr(const uint8_t *const origin, uint8_t *const decoded, const uint16_t size, uint32_t key) {
   // modify seed key with header values
   // manufacturer + address[0-1]
   key ^= rmsbf4(origin + 2);
@@ -87,8 +84,7 @@ bool decodeDiehlLfsr(const uint8_t *const origin, uint8_t *const decoded,
     // https://en.wikipedia.org/wiki/Linear-feedback_shift_register
     for (int j = 0; j < 8; ++j) {
       // calculate new bit value (xor of selected bits from previous key)
-      uint8_t bit = ((key & 0x2) != 0) ^ ((key & 0x4) != 0) ^
-                    ((key & 0x800) != 0) ^ ((key & 0x80000000) != 0);
+      uint8_t bit = ((key & 0x2) != 0) ^ ((key & 0x4) != 0) ^ ((key & 0x800) != 0) ^ ((key & 0x80000000) != 0);
       // shift key bits and add new one at the end
       key = (key << 1) | bit;
     }

@@ -25,101 +25,67 @@ uint16_t packetSize(uint8_t lField) {
   return nrBytes;
 }
 
-//    Returns the total number of encoded bytes to receive or transmit, given
-//    the total number of bytes in a Wireless MBUS packet. In receive mode the
-//    postamble sequence and synchronization word is excluded from the
-//    calculation.
-//
-//  ARGUMENTS:
-//    uint16_t  packetSize  - Total number of bytes in the wireless MBUS packet
-//
-//  RETURNS
-//    uint16_t  - The number of bytes of the encoded WMBUS packet
-uint16_t byteSize(uint16_t packetSize) {
-
-  uint16_t tmodeVar = (3 * packetSize) / 2;
-
-  // Receive mode
-  // If packetsize is a odd number 1 extra byte
-  // that includes the 4-postamble sequence must be
-  // read.
-  if (packetSize % 2)
-    return (tmodeVar + 1);
-  else
-    return (tmodeVar);
-}
-
 /// @brief Decode a TMODE packet into a Wireless MBUS packet. Checks for 3 out
 /// of 6 decoding errors and CRC errors.
 /// @param pByte Pointer to TMBUS packet
 /// @param pPacket Pointer to Wireless MBUS packet
-/// @param packetSize Total Size of the Wireless MBUS packet
+/// @param packetSize Total Size of the Wireless MBUS packet (decoded size)
 /// @return Error code
-PacketDecodeResult decodeRXBytesTmode(const uint8_t *pByte, uint8_t *pPacket,
-                                      uint16_t packetSize) {
+PacketDecodeResult decodeRXBytesTmode(const uint8_t *pByte, uint8_t *pPacket, uint16_t packetSize) {
 
   uint16_t bytesRemaining = packetSize;
   uint16_t bytesEncoded = 0;
-  CrcCalc crc = CrcCalc(); // Current CRC value
+  // Current CRC value
+  CrcCalc crc = {};
 
-  // Decode packet
-  while (bytesRemaining > 0) {
+  // Decode packet 2 byte at a time
+  while (bytesRemaining > 1) {
     // Check for valid 3 out of 6 decoding
-    if (!decode3outof6(pByte, pPacket, bytesRemaining == 1))
+    if (!decode3outof6(pByte, pPacket, false))
       return PacketDecodeResult::CODING_ERROR;
 
-    // If last byte
-    if (bytesRemaining == 1) {
-      bytesRemaining -= 1;
-      bytesEncoded += 1;
-      // The last byte the low byte of the CRC field
-      if (!crc.checLow(*pPacket))
+    bytesRemaining -= 2;
+    bytesEncoded += 2;
+
+    // Current fields are a CRC field
+    bool crcField = false;
+
+    // Check if current field is CRC fields
+    // - Field 10 + 18*n
+    // - Less than 2 bytes
+    if (bytesRemaining == 0)
+      crcField = true;
+    else if (bytesEncoded > 10)
+      crcField = !((bytesEncoded - 12) % 18);
+
+    // Check CRC field
+    if (crcField) {
+      if (!(crc.checkLow(*(pPacket + 1)) && crc.checkHigh(*pPacket)))
         return PacketDecodeResult::CRC_ERROR;
-    }
-
-    else {
-
-      bytesRemaining -= 2;
-      bytesEncoded += 2;
-
-      bool crcField = false; // Current fields are a CRC field
-
-      // Check if current field is CRC fields
-      // - Field 10 + 18*n
-      // - Less than 2 bytes
-      if (bytesRemaining == 0)
-        crcField = true;
-      else if (bytesEncoded > 10)
-        crcField = !((bytesEncoded - 12) % 18);
-
-      // Check CRC field
-      if (crcField) {
-        if (!crc.checLow(*(pPacket + 1)))
-          return PacketDecodeResult::CRC_ERROR;
-        if (!crc.checHigh(*pPacket))
-          return PacketDecodeResult::CRC_ERROR;
-
-        crcField = false;
-        crc.reset();
-      }
-
+      crc = {};
+    } else if (bytesRemaining == 1) {
       // If 1 bytes left, the field is the high byte of the CRC
-      else if (bytesRemaining == 1) {
-        crc.pushData(*(pPacket));
-        // The packet byte is a CRC-field
-        if (!crc.checHigh(*(pPacket + 1)))
-          return PacketDecodeResult::CRC_ERROR;
-      }
-
+      crc.pushData(*(pPacket));
+      // The packet byte is a CRC-field
+      if (!crc.checkHigh(*(pPacket + 1)))
+        return PacketDecodeResult::CRC_ERROR;
+    } else {
       // Perform CRC calculation
-      else {
-        crc.pushData(*(pPacket));
-        crc.pushData(*(pPacket + 1));
-      }
-
-      pByte += 3;
-      pPacket += 2;
+      crc.pushData(*(pPacket));
+      crc.pushData(*(pPacket + 1));
     }
+
+    pByte += 3;
+    pPacket += 2;
+  }
+
+  // handle the last byte if necessary
+  if (bytesRemaining == 1) {
+    if (!decode3outof6(pByte, pPacket, true))
+      return PacketDecodeResult::CODING_ERROR;
+    // The last byte the low byte of the CRC field
+    if (!crc.checkLow(*pPacket))
+      return PacketDecodeResult::CRC_ERROR;
   }
 
   return PacketDecodeResult::OK;

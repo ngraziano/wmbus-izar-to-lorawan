@@ -73,13 +73,11 @@ static std::array<uint8_t,64> decodeTab = {0xFF,  //  "3 out of 6" encoded 0x00 
 // Performs the "3 out 6" decoding of a 24-bit data value into 16-bit
 // data value. If only 2 byte left to decoded,
 // the postamble sequence is ignored
-bool decode3outof6(const uint8_t *encodedData, uint8_t *decodedData,
-                   bool lastByte) {
+bool decode3outof6(const uint8_t *encodedData, uint8_t *decodedData, bool lastByte) {
 
   std::array<uint8_t, 2> data;
 
-  data[0] = decodeTab[((encodedData[1] & 0xF0) >> 4) |
-                      ((encodedData[0] & 0x03) << 4)];
+  data[0] = decodeTab[((encodedData[1] & 0xF0) >> 4) | ((encodedData[0] & 0x03) << 4)];
   data[1] = decodeTab[((encodedData[0] & 0xFC) >> 2)];
 
   // - Check for invalid data coding -
@@ -91,8 +89,7 @@ bool decode3outof6(const uint8_t *encodedData, uint8_t *decodedData,
 
   if (!lastByte) {
     data[0] = decodeTab[encodedData[2] & 0x3F];
-    data[1] = decodeTab[((encodedData[2] & 0xC0) >> 6) |
-                        ((encodedData[1] & 0x0F) << 2)];
+    data[1] = decodeTab[((encodedData[2] & 0xC0) >> 6) | ((encodedData[1] & 0x0F) << 2)];
     // - Check for invalid data coding -
     if ((data[0] == 0xFF) || (data[1] == 0xFF)) {
       return false;

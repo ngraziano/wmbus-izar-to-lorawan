@@ -13,4 +13,3 @@ void CrcCalc::pushData(uint8_t data) {
     data <<= 1;
   }
 }
-

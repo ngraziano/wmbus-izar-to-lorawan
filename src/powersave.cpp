@@ -33,15 +33,13 @@ void powersave(OsDeltaTime maxTime, stopsleepcb_t interrupt) {
     return;
   }
 
-  PRINT_DEBUG(1, F("Sleep (ostick) :%lix%i"), duration_selected.to_ms(),
-              maxTime / duration_selected);
+  PRINT_DEBUG(1, F("Sleep (ostick) :%lix%i"), duration_selected.to_ms(), maxTime / duration_selected);
   if (debugLevel > 0) {
     Serial.flush();
   }
 
   bool stopsleep = false;
-  for (uint16_t nbsleep = maxTime / duration_selected;
-       nbsleep > 0 && !stopsleep; nbsleep--) {
+  for (uint16_t nbsleep = maxTime / duration_selected; nbsleep > 0 && !stopsleep; nbsleep--) {
     powerDown(period_selected);
     hal_add_time_in_sleep(duration_selected);
     stopsleep = interrupt();

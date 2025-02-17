@@ -10,8 +10,7 @@ constexpr uint8_t IZAR_LENGH = 30;
 
 class RadioSx1276FSK final {
 public:
-  explicit RadioSx1276FSK(lmic_pinmap const &pins,
-                          const std::array<uint8_t, 6> &meter_id);
+  explicit RadioSx1276FSK(lmic_pinmap const &pins, const std::array<uint8_t, 6> &meter_id);
   bool listen_wmbus(std::array<uint8_t, 7> &result);
   void stop_listen();
 

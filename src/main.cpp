@@ -17,10 +17,12 @@
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-constexpr OsDeltaTime TX_INTERVAL = OsDeltaTime::from_sec(300);
+// if possible a little before the interval of send of the meter
+
+constexpr OsDeltaTime TX_INTERVAL = OsDeltaTime::from_sec(302);
 
 constexpr unsigned int BAUDRATE = 9600;
-constexpr uint8_t button_pin = 3;
+
 // Pin mapping
 constexpr lmic_pinmap lmic_pins = {
     .nss = 10,
@@ -78,8 +80,7 @@ uint16_t read_vcc() {
   // REFS1 REFS0          --> 0 1, AVcc internal ref.
   // -Selects channel 14, bandgap voltage, to measure
   // MUX3 MUX2 MUX1 MUX0  --> 1110 1.1V (VBG)
-  ADMUX = (0 << REFS1) | (1 << REFS0) | (0 << ADLAR) | (1 << MUX3) |
-          (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
+  ADMUX = (0 << REFS1) | (1 << REFS0) | (0 << ADLAR) | (1 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0);
   // Let Vref settle
   delay(1);
   // start the conversion
@@ -140,8 +141,8 @@ ISR(PCINT0_vect) {
 
 void pciSetup(byte pin) {
   *digitalPinToPCMSK(pin) |= bit(digitalPinToPCMSKbit(pin)); // enable pin
-  PCIFR |= bit(digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
-  PCICR |= bit(digitalPinToPCICRbit(pin)); // enable interrupt for the group
+  PCIFR |= bit(digitalPinToPCICRbit(pin));                   // clear any outstanding interrupt
+  PCICR |= bit(digitalPinToPCICRbit(pin));                   // enable interrupt for the group
 }
 
 void testDuration(int32_t ms) {
@@ -155,14 +156,13 @@ void testDuration(int32_t ms) {
   PRINT_DEBUG(1, F("Test Time should be : %d ms"), (end - start).to_ms());
 }
 
-
 void setup() {
   // To handle VCC <= 2.4v
   // clock start at 8MHz / 8 => 1 MHz
   // set clock to 8MHz / 4 => 2MHz
   // maybe 4Mhz could also work
-  // clock_prescale_set(clock_div_4);
-  clock_prescale_set(clock_div_2);
+  clock_prescale_set(clock_div_4);
+  // clock_prescale_set(clock_div_2);
 
   if (debugLevel > 0) {
     Serial.begin(BAUDRATE);
@@ -170,7 +170,6 @@ void setup() {
 
   pciSetup(lmic_pins.dio[0]);
   pciSetup(lmic_pins.dio[1]);
-
 
   SPI.begin();
   // LMIC init
@@ -222,8 +221,7 @@ void loop() {
     if (freeTimeBeforeNextCall > OsDeltaTime::from_ms(10)) {
       // we have more than 10 ms to do some work.
       // the test must be adapted from the time spend in other task
-      if (nextSend < os_getTime() &&
-          !LMIC.getOpMode().test(OpState::TXRXPEND) &&
+      if (nextSend < os_getTime() && !LMIC.getOpMode().test(OpState::TXRXPEND) &&
           freeTimeBeforeNextCall > OsDeltaTime::from_sec(95)) {
         PRINT_DEBUG(1, F("WMBUS start listenning"));
 
@@ -231,8 +229,7 @@ void loop() {
         timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
       } else {
         OsDeltaTime freeTimeBeforeSend = nextSend - os_getTime();
-        OsDeltaTime to_wait =
-            std::min(freeTimeBeforeNextCall, freeTimeBeforeSend);
+        OsDeltaTime to_wait = std::min(freeTimeBeforeNextCall, freeTimeBeforeSend);
         // Go to sleep if we have nothing to do.
         powersave(to_wait, []() { return false; });
       }
