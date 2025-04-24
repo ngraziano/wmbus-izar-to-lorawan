@@ -1,4 +1,4 @@
-# Lora proxy for izar wmbus
+# Lora proxy for Izar wmbus
 
 This project listen to izar frame every 5 minute and transmit flags and current meter index by lorawan.
 When you meter is far away from your network, it allow to use lorawan.
@@ -9,7 +9,9 @@ with just a SX1276 connected to a microcontroller.
 Only work with IZAR frame (length harcoded) but can be adapted for other wmbus frame
 
 Tested with Arduino Pro Mini and RFM95 on EU868 frequencies.
-*Warning* : Not standart bootloader **must** be installed to handle watchdog and low voltage
+*Warning* : Not standard bootloader **must** be installed to handle watchdog and low voltage
+
+[Some detail in french](doc/detail.fr.md)
 
 ## Usage
 
@@ -44,3 +46,10 @@ Int 1 / Pin 3 is use to wake a with a button linked to ground.
 During start there is a test of deepsleep time.
 You need to calibrate it.
 Use a terminal which print the time the message are receive (YAT for example) and mesure time between message `Start Test sleep time.` and `End Test sleep time.` divide this time by the time in `Test Time should be :` message and ajust `sleepAdj` acordingly.
+
+
+## Reference 
+
+A blog with lot of detail on Izar/PRIOS protocol. [Reading my IZAR WMBus PRIOS hot water smart meter](https://zewaren.net/wmbus-izar-meter.html)
+
+Some SX1276 configuration from [Github xaelsouth/Semtech-wMBusReceiver](https://github.com/xaelsouth/Semtech-wMBusReceiver/)

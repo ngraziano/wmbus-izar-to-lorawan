@@ -2,8 +2,15 @@
 #define CRC_H
 #include <stdint.h>
 
-#define CRC_POLYNOM         0x3D65
+class CrcCalc final {
+  static constexpr uint16_t CRC_POLYNOM = 0x3D65;
 
-uint16_t crcCalc(uint16_t crcReg, uint8_t crcData); 
+  uint16_t reg = 0;
+
+public:
+  void pushData(uint8_t data);
+  bool checkLow(uint8_t crcLow) const { return (~reg & 0xff) == crcLow; };
+  bool checkHigh(uint8_t crcHigh) const { return (((~reg) >> 8) & 0xff) == crcHigh; };
+};
 
 #endif

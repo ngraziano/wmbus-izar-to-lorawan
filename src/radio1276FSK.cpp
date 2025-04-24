@@ -1,14 +1,17 @@
 #include "radio1276FSK.h"
-#include "mbus_packet.h"
+
 #include <algorithm>
 #include <hal/print_debug.h>
+#include <lmic/lmic_table.h>
 #include <lmic/oslmic.h>
+#include <lmic/radio_sx1276.h>
 #include <stdio.h>
 
 #include "izar.h"
+#include "mbus_packet.h"
+#include "powersave.h"
 
-RadioSx1276FSK::RadioSx1276FSK(lmic_pinmap const &pins,
-                               const std::array<uint8_t, 6> &meter_id)
+RadioSx1276FSK::RadioSx1276FSK(lmic_pinmap const &pins, const std::array<uint8_t, 6> &meter_id)
     : meter_id(meter_id), hal(pins) {}
 
 namespace {
@@ -77,94 +80,113 @@ const uint32_t xtal_freq = 32000000;
 
 // Param
 constexpr uint32_t t1_freq = 868950000;
+constexpr uint64_t const frf = ((uint64_t)t1_freq << 19) / xtal_freq;
+
 constexpr uint32_t t1_deviation = 50000;
+constexpr uint16_t fdev = ((uint64_t)t1_deviation << 19) / xtal_freq;
+
 constexpr uint32_t t1_datarate = 100000;
+constexpr uint32_t dt = xtal_freq / t1_datarate;
+
 constexpr uint32_t preambleLen = 3;
 constexpr uint32_t syncWord = 0x5555543DULL;
 constexpr uint8_t fifoThreshold = 15;
+
+CONST_TABLE(uint16_t, FSK_INIT_CMD)
+[] = {
+    RegSet(RegLna, 0x23).raw(),
+    // RestartRxWithPLLClock, AfcAutoOn, AGC
+    // auto on, PreambleDetect, AGC & AFC
+    RegSet(RegRxConfig, 0x1E).raw(),
+    // RSSI Offset, RSSI smoothing using 8 samples
+    RegSet(RegRssiConfig, 0xD2).raw(),
+    // AfcAutoClearOn
+    RegSet(RegAfcFei, 0x01).raw(),
+    // PreambleDetectorOn, PreambleDetectorSize = 3 bytes, 4
+    // chip errros per bit tolerated
+    RegSet(RegPreambleDetect, 0xAA).raw(),
+    // ClkOut OFF
+    RegSet(RegOsc, 0x07).raw(),
+    // AutoRestartRxMod = wait for PLL to lock, PreamblePolarity =
+    // 0x55, Sync on, Size of the Sync Word = SyncSize + 1 = 2
+    RegSet(RegSyncConfig, 0xb3).raw(),
+
+    // Sync Word
+    RegSet(RegSyncValue1, (uint8_t)(syncWord >> 24)).raw(),
+    RegSet(RegSyncValue2, (uint8_t)(syncWord >> 16)).raw(),
+    RegSet(RegSyncValue3, (uint8_t)(syncWord >> 8)).raw(),
+    RegSet(RegSyncValue4, (uint8_t)(syncWord >> 0)).raw(),
+
+    RegSet(RegFifoThresh, fifoThreshold).raw(),
+    // Temperature change threshold = 10°C
+    RegSet(RegImageCal, 0x02).raw(),
+    // freq
+    RegSet(RegFrfMsb, (uint8_t)(frf >> 16)).raw(),
+    RegSet(RegFrfMid, (uint8_t)(frf >> 8)).raw(),
+    RegSet(RegFrfLsb, (uint8_t)(frf >> 0)).raw(),
+
+    // deviation
+    // FSTEP= 32,000,000 / 2^19 = 61.03515625 Hz
+    // FDEV = 50,000 / 61.03515625 = 819.2
+    RegSet(RegFdevMsb, (uint8_t)(fdev >> 8)).raw(),
+    RegSet(RegFdevLsb, (uint8_t)(fdev >> 0)).raw(),
+
+    // datarate
+    RegSet(RegBitrateMsb, (uint8_t)(dt >> 8)).raw(),
+    RegSet(RegBitrateLsb, (uint8_t)(dt >> 0)).raw(),
+
+    // bandwidth 2*t1_deviation + t1_datarate
+    // 2*50_000 + 100_000 = 200_000
+    // => register value 0x09
+    RegSet(RegRxBw, 0x09).raw(),
+    RegSet(RegAfcBw, 0x09).raw(),
+
+    // preamble (not sure)
+    RegSet(RegPreambleMsb, (uint8_t)((preambleLen >> 8) & 0xFF)).raw(),
+    RegSet(RegPreambleLsb, (uint8_t)(preambleLen & 0xFF)).raw(),
+
+    // payload length
+    // limited to only one type of frame
+    RegSet(RegPayloadLength, IZAR_LENGH_3OUTOF6).raw(),
+    // config
+    // addr filtering off, crc off, fixed length
+    // packet mode
+    RegSet(RegPacketConfig1, 0x00).raw(),
+    RegSet(RegPacketConfig2, 0x40).raw(),
+
+    // DIO mapping
+    // DIO0=PayloadReady => Read Data
+    // DIO1=FifoLevel    => Read Data
+    // DIO2=FifoFull     => Not used
+    // DIO3=FifoEmpty    => Not used
+    // DIO4=Preamble     => Not used
+    // DIO5=ModeReady    => Not used
+    RegSet(RegDioMapping1, 0b00000000).raw(),
+    RegSet(RegDioMapping2, 0b11000001).raw(),
+
+    // transition
+    // receive to low power
+    // From Standby to Rx
+    RegSet(RegSeqConfig2, 0x04).raw(),
+}; // namespace
+
+constexpr uint8_t NB_TX_INIT_CMD = sizeof(RESOLVE_TABLE(FSK_INIT_CMD)) / sizeof(RESOLVE_TABLE(FSK_INIT_CMD)[0]);
 
 } // namespace
 
 void RadioSx1276FSK::init() {
   PRINT_DEBUG(1, F("Config wmbus"));
   if ((hal.read_reg(RegOpMode) & 0xF0) != 0) {
-    hal.write_reg(RegOpMode, OPMODE_FSK);
+    // need to go to sleep state if not in FSK mode
+    hal.write_reg(RegOpMode, OPMODE_FSK | OPMODE_SLEEP);
   }
 
   hal.write_reg(RegOpMode, OPMODE_FSK | OPMODE_STANDBY);
 
-  hal.write_reg(RegLna, 0x23);
-  hal.write_reg(RegRxConfig, 0x1E); // RestartRxWithPLLClock, AfcAutoOn, AGC
-                                    // auto on, PreambleDetect, AGC & AFC
-  hal.write_reg(RegRssiConfig,
-                0xD2);            // RSSI Offset, RSSI smoothing using 8 samples
-  hal.write_reg(RegAfcFei, 0x01); // AfcAutoClearOn
-  hal.write_reg(RegPreambleDetect,
-                0xAA); // PreambleDetectorOn, PreambleDetectorSize = 3 bytes, 4
-                       // chip errros per bit tolerated
-  hal.write_reg(RegOsc, 0x07); // ClkOut OFF
-  hal.write_reg(
-      RegSyncConfig,
-      0xb3); // AutoRestartRxMod = wait for PLL to lock, PreamblePolarity =
-             // 0x55, Sync on, Size of the Sync Word = SyncSize + 1 = 2
-  hal.write_reg(RegSyncValue1, (uint8_t)(syncWord >> 24)); // Sync Word
-  hal.write_reg(RegSyncValue2, (uint8_t)(syncWord >> 16)); // Sync Word
-  hal.write_reg(RegSyncValue3, (uint8_t)(syncWord >> 8));  // Sync Word
-  hal.write_reg(RegSyncValue4, (uint8_t)(syncWord >> 0));  // Sync Word
-  hal.write_reg(RegFifoThresh, fifoThreshold);
-  hal.write_reg(RegImageCal, 0x02); // Temperature change threshold = 10°C
-
-  // freq
-  uint64_t const frf = ((uint64_t)t1_freq << 19) / xtal_freq;
-  hal.write_reg(RegFrfMsb, (uint8_t)(frf >> 16));
-  hal.write_reg(RegFrfMid, (uint8_t)(frf >> 8));
-  hal.write_reg(RegFrfLsb, (uint8_t)(frf >> 0));
-
-  // deviation
-  // FSTEP= 32,000,000 / 2^19 = 61.03515625 Hz
-  // FDEV = 50,000 / 61.03515625 = 819.2
-  uint16_t fdev = ((uint64_t)t1_deviation << 19) / xtal_freq;
-  hal.write_reg(RegFdevMsb, (uint8_t)(fdev >> 8));
-  hal.write_reg(RegFdevLsb, (uint8_t)(fdev >> 0));
-
-  // datarate
-  uint32_t dt = xtal_freq / t1_datarate;
-  hal.write_reg(RegBitrateMsb, (uint8_t)(dt >> 8));
-  hal.write_reg(RegBitrateLsb, (uint8_t)(dt >> 0));
-
-  // bandwidth 2*t1_deviation + t1_datarate
-  // 2*50_000 + 100_000 = 200_000
-  // => register value 0x09
-  hal.write_reg(RegRxBw, 0x09);
-  hal.write_reg(RegAfcBw, 0x09);
-
-  // preamble (not sure)
-  hal.write_reg(RegPreambleMsb, (uint8_t)((preambleLen >> 8) & 0xFF));
-  hal.write_reg(RegPreambleLsb, (uint8_t)(preambleLen & 0xFF));
-
-  // payload length
-  // limited to only one type of frame
-  hal.write_reg(RegPayloadLength, IZAR_LENGH_3OUTOF6);
-
-  // config
-  // addr filtering off, crc off, fixed length
-  // packet mode
-  hal.write_reg(RegPacketConfig1, 0x00);
-  hal.write_reg(RegPacketConfig2, 0x40);
-
-  // DIO mapping
-  // DIO0=PayloadReady => Read Data
-  // DIO1=FifoLevel    => Read Data
-  // DIO2=FifoFull     => Not used ?
-  // DIO3=FifoEmpty    => Not used
-  // DIO4=Preamble     => Not used
-  // DIO5=ModeReady    => Not used
-  hal.write_reg(RegDioMapping1, 0b00000000);
-  hal.write_reg(RegDioMapping2, 0b11000001);
-
-  // transition
-  // receive to low power
-  hal.write_reg(RegSeqConfig2, 0x04); // From Standby to Rx
+  for (uint8_t i = 0; i < NB_TX_INIT_CMD; i++) {
+    RegSet cmd{table_get_u2(RESOLVE_TABLE(FSK_INIT_CMD), i)};
+    hal.write_reg(cmd.reg, cmd.val);
+  }
 
   PRINT_DEBUG(1, F("Config done"));
 }
@@ -193,8 +215,7 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     current_raw_byte = 0;
 
     // start rx
-    hal.write_reg(RegOpMode,
-                  (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
+    hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
     listening = true;
   }
 
@@ -211,52 +232,47 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     debugtime = os_getTime();
     auto irq1 = hal.read_reg(RegIrqFlags1);
     auto irq2 = hal.read_reg(RegIrqFlags2);
-    PRINT_DEBUG(1, F("State %02x, IRQ1 %02x, IRQ2 %02x, current_raw_byte %d"),
-                hal.read_reg(RegOpMode), irq1, irq2, current_raw_byte);
+    PRINT_DEBUG(1, F("State %02x, IRQ1 %02x, IRQ2 %02x, current_raw_byte %d"), hal.read_reg(RegOpMode), irq1, irq2,
+                current_raw_byte);
 
     if (irq2 & IrqFifoOverrun) {
       hal.write_reg(RegIrqFlags2, IrqFifoOverrun);
-      hal.write_reg(RegOpMode,
-                    (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_STANDBY);
+      hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_STANDBY);
       PRINT_DEBUG(1, F("Fifo overrun"));
 
-      hal.write_reg(RegOpMode,
-                    (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
+      hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
     }
 
     if (irq2 & IrqFifoFull) {
-      hal.write_reg(RegOpMode,
-                    (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_STANDBY);
+      hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_STANDBY);
       PRINT_DEBUG(1, F("Fifo full"));
-      hal.write_reg(RegOpMode,
-                    (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
+      hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
     }
   }
 #endif
 
   if (current_raw_byte == IZAR_LENGH_3OUTOF6) {
     PRINT_DEBUG(1, F("Payload read"));
-    PRINT_DEBUG(1, F("Payload RAW: %02x %02x %02x %02x %02x %02x %02x %02x"),
-                buffer_raw[0], buffer_raw[1], buffer_raw[2], buffer_raw[3],
-                buffer_raw[4], buffer_raw[5], buffer_raw[6], buffer_raw[7]);
+    PRINT_DEBUG(1, F("Payload RAW: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer_raw[0], buffer_raw[1],
+                buffer_raw[2], buffer_raw[3], buffer_raw[4], buffer_raw[5], buffer_raw[6], buffer_raw[7]);
 
-    auto decode_result =
-        decodeRXBytesTmode(buffer_raw.begin(), buffer.begin(), IZAR_LENGH);
+    auto decode_result = decodeRXBytesTmode(buffer_raw.begin(), buffer.begin(), IZAR_LENGH);
+
     PRINT_DEBUG(1, F("decode packet %d "), decode_result);
-    PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"),
-                buffer[0], buffer[1], buffer[2], buffer[3], buffer[4],
-                buffer[5], buffer[6], buffer[7]);
-    PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"),
-                buffer[8], buffer[9], buffer[10], buffer[11], buffer[12],
-                buffer[13], buffer[14], buffer[15]);
-    if (decode_result == PACKET_OK) {
-      isFind =
-          printAndExtractIZAR(buffer.begin(), buffer.size(), meter_id, result);
-      printf("\n");
+    PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer[0], buffer[1], buffer[2], buffer[3],
+                buffer[4], buffer[5], buffer[6], buffer[7]);
+    PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer[8], buffer[9], buffer[10], buffer[11],
+                buffer[12], buffer[13], buffer[14], buffer[15]);
+
+    if (decode_result == PacketDecodeResult::OK) {
+      isFind = printAndExtractIZAR(buffer.begin(), buffer.size(), meter_id, result);
+      if (LMIC_DEBUG_LEVEL > 0)
+        printf("\n");
     }
     current_raw_byte = 0;
     listening = false;
   }
+
   return isFind;
 }
 
