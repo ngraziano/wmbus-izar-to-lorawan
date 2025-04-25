@@ -195,7 +195,7 @@ void setup() {
   // Start job (sending automatically starts OTAA too)
   nextSend = os_getTime();
   inWMBusMode = true;
-  timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
+  timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(30);
 }
 
 void loop() {
@@ -226,7 +226,7 @@ void loop() {
         PRINT_DEBUG(1, F("WMBUS start listenning"));
 
         inWMBusMode = true;
-        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
+        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(30);
       } else {
         OsDeltaTime freeTimeBeforeSend = nextSend - os_getTime();
         OsDeltaTime to_wait = std::min(freeTimeBeforeNextCall, freeTimeBeforeSend);
