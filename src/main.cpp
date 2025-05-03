@@ -195,7 +195,7 @@ void setup() {
   // Start job (sending automatically starts OTAA too)
   nextSend = os_getTime();
   inWMBusMode = true;
-  timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(30);
+  timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
 }
 
 void loop() {
@@ -203,7 +203,8 @@ void loop() {
 
   if (inWMBusMode) {
     std::array<uint8_t, 7> frame;
-    if (radiofsk.listen_wmbus(frame)) {
+    auto state = radiofsk.listen_wmbus(frame);
+    if (state == Listenstate::Complete) {
       radiofsk.stop_listen();
       inWMBusMode = false;
       do_send_counter(frame);
@@ -213,7 +214,12 @@ void loop() {
       PRINT_DEBUG(1, F("WMBUS timeout"));
       radiofsk.stop_listen();
       inWMBusMode = false;
-      do_send_empty();
+      
+      // do_send_empty();
+      inWMBusMode = true;
+      timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
+    } else if (state == Listenstate::waiting) {
+      powersave(OsDeltaTime::from_ms(2000), []() { return radiofsk.io_check(); });
     }
   } else {
     OsDeltaTime freeTimeBeforeNextCall = LMIC.run();
@@ -226,7 +232,7 @@ void loop() {
         PRINT_DEBUG(1, F("WMBUS start listenning"));
 
         inWMBusMode = true;
-        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(30);
+        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
       } else {
         OsDeltaTime freeTimeBeforeSend = nextSend - os_getTime();
         OsDeltaTime to_wait = std::min(freeTimeBeforeNextCall, freeTimeBeforeSend);

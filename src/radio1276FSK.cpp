@@ -76,6 +76,8 @@ constexpr uint8_t IrqPayloadReady = 0x04;
 constexpr uint8_t IrqCrcOk = 0x02;
 constexpr uint8_t IrqRssi = 0x01;
 
+constexpr uint8_t IrqPreambleDetect = 0x02;
+
 const uint32_t xtal_freq = 32000000;
 
 // Param
@@ -207,8 +209,8 @@ void RadioSx1276FSK::handle_fifo_level() {
   current_raw_byte += to_read;
 }
 
-bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
-  bool isFind = false;
+Listenstate RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
+  Listenstate state = Listenstate::waiting;
   if (!listening) {
     PRINT_DEBUG(1, F("Start listen wmbus"));
     init();
@@ -227,7 +229,7 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     handle_payload_ready();
   }
 
-#if LMIC_DEBUG_LEVEL > 1
+#if LMIC_DEBUG_LEVEL > 0
   if (os_getTime() - debugtime > OsDeltaTime::from_sec(5)) {
     debugtime = os_getTime();
     auto irq1 = hal.read_reg(RegIrqFlags1);
@@ -248,10 +250,19 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
       PRINT_DEBUG(1, F("Fifo full"));
       hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
     }
+
+    if (irq1 & IrqPreambleDetect) {
+      hal.write_reg(RegIrqFlags1, IrqPreambleDetect);
+      PRINT_DEBUG(1, F("Preamble detect"));
+    }
+      
   }
 #endif
 
   if (current_raw_byte == IZAR_LENGH_3OUTOF6) {
+    
+    state = Listenstate::InvalidFrame;
+
     PRINT_DEBUG(1, F("Payload read"));
     PRINT_DEBUG(1, F("Payload RAW: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer_raw[0], buffer_raw[1],
                 buffer_raw[2], buffer_raw[3], buffer_raw[4], buffer_raw[5], buffer_raw[6], buffer_raw[7]);
@@ -265,7 +276,9 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
                 buffer[12], buffer[13], buffer[14], buffer[15]);
 
     if (decode_result == PacketDecodeResult::OK) {
-      isFind = printAndExtractIZAR(buffer.begin(), buffer.size(), meter_id, result);
+      if(printAndExtractIZAR(buffer.begin(), buffer.size(), meter_id, result)){
+        state = Listenstate::Complete;
+      }
       if (LMIC_DEBUG_LEVEL > 0)
         printf("\n");
     }
@@ -273,7 +286,7 @@ bool RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     listening = false;
   }
 
-  return isFind;
+  return state;
 }
 
 void RadioSx1276FSK::stop_listen() {

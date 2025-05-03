@@ -8,17 +8,28 @@
 constexpr uint8_t IZAR_LENGH_3OUTOF6 = 0x45;
 constexpr uint8_t IZAR_LENGH = 30;
 
+enum class Listenstate : uint8_t {
+
+  waiting = 0,
+  InvalidFrame,
+  Complete,
+};
+
 class RadioSx1276FSK final {
 public:
   explicit RadioSx1276FSK(lmic_pinmap const &pins,
                           const std::array<uint8_t, 6> &meter_id);
-  bool listen_wmbus(std::array<uint8_t, 7> &result);
+  Listenstate listen_wmbus(std::array<uint8_t, 7> &result);
   void stop_listen();
+  bool io_check() const {
+    return hal.io_check();
+  }
 
 private:
   void init();
   void handle_payload_ready();
   void handle_fifo_level();
+
 
   const std::array<uint8_t, 6> &meter_id;
   HalIo hal;
