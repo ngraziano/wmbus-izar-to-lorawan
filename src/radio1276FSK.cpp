@@ -219,6 +219,14 @@ Listenstate RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
     // start rx
     hal.write_reg(RegOpMode, (hal.read_reg(RegOpMode) & ~OPMODE_MASK) | OPMODE_RX);
     listening = true;
+
+    #if LMIC_DEBUG_LEVEL > 1
+    // print all config
+    for(auto idx = 1; idx < 0x50; idx++) {
+      auto reg = hal.read_reg(idx);
+      PRINT_DEBUG(1, F("Reg %02x: %02x"), idx, reg);
+    }
+    #endif
   }
 
   if (hal.io_check1()) {
