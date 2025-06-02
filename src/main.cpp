@@ -207,7 +207,9 @@ void loop() {
     if (state == Listenstate::Complete) {
       radiofsk.stop_listen();
       inWMBusMode = false;
-      do_send_counter(frame);
+      // do_send_counter(frame);
+      inWMBusMode = true;
+      timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
 
     } else if (os_getTime() > timeoutWMBus) {
       // we did not get any wmbus data
