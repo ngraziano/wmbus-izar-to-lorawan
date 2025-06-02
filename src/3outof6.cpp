@@ -85,7 +85,7 @@ bool decode3outof6(const uint8_t *encodedData, uint8_t *decodedData, bool lastBy
     return false;
   }
 
-  decodedData[0] = (data[0] << 4) | (data[1]);
+  decodedData[0] = (data[1] << 4) | (data[0]);
 
   if (!lastByte) {
     data[0] = decodeTab[encodedData[2] & 0x3F];
