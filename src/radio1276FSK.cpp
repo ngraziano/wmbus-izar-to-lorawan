@@ -111,13 +111,21 @@ CONST_TABLE(uint16_t, FSK_INIT_CMD)
     RegSet(RegOsc, 0x07).raw(),
     // AutoRestartRxMod = wait for PLL to lock, PreamblePolarity =
     // 0x55, Sync on, Size of the Sync Word = SyncSize + 1 = 2
-    RegSet(RegSyncConfig, 0xb3).raw(),
+    // RegSet(RegSyncConfig, 0xb3).raw(),
 
     // Sync Word
-    RegSet(RegSyncValue1, (uint8_t)(syncWord >> 24)).raw(),
-    RegSet(RegSyncValue2, (uint8_t)(syncWord >> 16)).raw(),
-    RegSet(RegSyncValue3, (uint8_t)(syncWord >> 8)).raw(),
-    RegSet(RegSyncValue4, (uint8_t)(syncWord >> 0)).raw(),
+    // RegSet(RegSyncValue1, (uint8_t)(syncWord >> 24)).raw(),
+    // RegSet(RegSyncValue2, (uint8_t)(syncWord >> 16)).raw(),
+    // RegSet(RegSyncValue3, (uint8_t)(syncWord >> 8)).raw(),
+    // RegSet(RegSyncValue4, (uint8_t)(syncWord >> 0)).raw(),
+
+    // limit to only 2 bytes of sync word
+    // AutoRestartRxMod = wait for PLL to lock, PreamblePolarity =
+    // 0x55, Sync on, Size of the Sync Word = SyncSize + 1
+    RegSet(RegSyncConfig, 0xb1).raw(),
+    RegSet(RegSyncValue1, (uint8_t)(syncWord >> 8)).raw(),
+    RegSet(RegSyncValue2, (uint8_t)(syncWord >> 0)).raw(),
+
 
     RegSet(RegFifoThresh, fifoThreshold).raw(),
     // Temperature change threshold = 10°C
