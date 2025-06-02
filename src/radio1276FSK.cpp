@@ -277,7 +277,7 @@ Listenstate RadioSx1276FSK::listen_wmbus(std::array<uint8_t, 7> &result) {
 
     auto decode_result = decodeRXBytesTmode(buffer_raw.begin(), buffer.begin(), IZAR_LENGH);
 
-    PRINT_DEBUG(1, F("decode packet %d "), decode_result);
+    PRINT_DEBUG(1, F("decode packet %d "), (int)decode_result);
     PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer[0], buffer[1], buffer[2], buffer[3],
                 buffer[4], buffer[5], buffer[6], buffer[7]);
     PRINT_DEBUG(1, F("Payload: %02x %02x %02x %02x %02x %02x %02x %02x"), buffer[8], buffer[9], buffer[10], buffer[11],
