@@ -207,22 +207,16 @@ void loop() {
     if (state == Listenstate::Complete) {
       radiofsk.stop_listen();
       inWMBusMode = false;
-      // do_send_counter(frame);
-      inWMBusMode = true;
-      timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
 
+      do_send_counter(frame);
     } else if (os_getTime() > timeoutWMBus) {
       // we did not get any wmbus data
       PRINT_DEBUG(1, F("WMBUS timeout"));
       radiofsk.stop_listen();
       inWMBusMode = false;
       
-      // do_send_empty();
-      inWMBusMode = true;
-      timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
-    } else if (state == Listenstate::waiting) {
-      powersave(OsDeltaTime::from_ms(2000), []() { return radiofsk.io_check(); });
-    }
+      do_send_empty();
+    } 
   } else {
     OsDeltaTime freeTimeBeforeNextCall = LMIC.run();
 
