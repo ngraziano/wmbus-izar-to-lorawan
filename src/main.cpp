@@ -228,7 +228,7 @@ void loop() {
         PRINT_DEBUG(1, F("WMBUS start listenning"));
 
         inWMBusMode = true;
-        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(90);
+        timeoutWMBus = os_getTime() + OsDeltaTime::from_sec(40);
       } else {
         OsDeltaTime freeTimeBeforeSend = nextSend - os_getTime();
         OsDeltaTime to_wait = std::min(freeTimeBeforeNextCall, freeTimeBeforeSend);
