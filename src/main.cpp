@@ -19,7 +19,7 @@
 // cycle limitations).
 // if possible a little before the interval of send of the meter
 
-constexpr OsDeltaTime TX_INTERVAL = OsDeltaTime::from_sec(302);
+constexpr OsDeltaTime TX_INTERVAL = OsDeltaTime::from_sec(604);
 
 constexpr unsigned int BAUDRATE = 9600;
 
