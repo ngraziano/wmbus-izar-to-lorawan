@@ -75,10 +75,10 @@ static std::array<uint8_t,64> decodeTab = {0xFF,  //  "3 out of 6" encoded 0x00 
 // the postamble sequence is ignored
 bool decode3outof6(const uint8_t *encodedData, uint8_t *decodedData, bool lastByte) {
 
-  std::array<uint8_t, 2> data;
-
-  data[0] = decodeTab[((encodedData[1] & 0xF0) >> 4) | ((encodedData[0] & 0x03) << 4)];
-  data[1] = decodeTab[((encodedData[0] & 0xFC) >> 2)];
+  std::array<uint8_t, 2> data = {
+    decodeTab[((encodedData[1] & 0xF0) >> 4) | ((encodedData[0] & 0x03) << 4)],
+    decodeTab[((encodedData[0] & 0xFC) >> 2)]
+  };
 
   // - Check for invalid data coding -
   if ((data[0] == 0xFF) || (data[1] == 0xFF)) {
