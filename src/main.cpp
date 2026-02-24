@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <avr/power.h>
+#include <avr/eeprom.h>
 
 #include <hal/hal_io.h>
 #include <hal/print_debug.h>
@@ -14,6 +15,8 @@
 #include "lorakeys.h"
 #include "powersave.h"
 #include "radio1276FSK.h"
+
+constexpr unsigned int EEPROMVKEY = 0x51;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
@@ -37,6 +40,27 @@ LmicEu868 LMIC{radio};
 
 OsTime nextSend;
 
+
+class EEPROMStoring : public StoringAbtract {
+public:
+  void store(void const *val, size_t size) final {
+    eeprom_update_block(val, (void *)offset, size);
+    offset += size;
+  }
+private:
+  size_t offset = 0;
+};
+
+class EEPROMRetrieve : public RetrieveAbtract {
+public:
+  void retrieve(void *val, size_t size) final {
+    eeprom_read_block(val, (void *)offset, size);
+    offset += size;
+  }
+private:
+  size_t offset = 0;
+};
+
 void onEvent(EventType ev) {
   rst_wdt();
   switch (ev) {
@@ -44,20 +68,34 @@ void onEvent(EventType ev) {
     PRINT_DEBUG(2, F("EV_JOINING"));
     // LMIC.setDrJoin(0);
     break;
-  case EventType::JOINED:
-    PRINT_DEBUG(2, F("EV_JOINED"));
-    // disable ADR because it will be mobile.
-    LMIC.setLinkCheckMode(false);
-    // LMIC.setDrTx(0);
-    LMIC.setDutyRate(12);
+  case EventType::JOINED: {
+      PRINT_DEBUG(2, F("EV_JOINED"));
+      // disable ADR because it will be mobile.
+      LMIC.setLinkCheckMode(false);
+      // LMIC.setDrTx(0);
+      LMIC.setDutyRate(12);
+
+      EEPROMStoring store;
+      store.store(&EEPROMVKEY, sizeof(EEPROMVKEY));
+      PRINT_DEBUG(1, F("Save state after join"));
+
+      LMIC.saveStateWithoutTimeData(store);
+      }
     break;
   case EventType::JOIN_FAILED:
     PRINT_DEBUG(2, F("EV_JOIN_FAILED"));
     break;
-  case EventType::TXCOMPLETE:
-    PRINT_DEBUG(2, F("EV_TXCOMPLETE (includes waiting for RX windows)"));
-    if (LMIC.getTxRxFlags().test(TxRxStatus::ACK)) {
-      PRINT_DEBUG(1, F("Received ack"));
+  case EventType::TXCOMPLETE: {
+      PRINT_DEBUG(2, F("EV_TXCOMPLETE (includes waiting for RX windows)"));
+      if (LMIC.getTxRxFlags().test(TxRxStatus::ACK)) {
+        PRINT_DEBUG(1, F("Received ack"));
+      }
+      if(LMIC.getSeqnoUp() % 0x40 == 0){
+        PRINT_DEBUG(1, F("Saving state after %d frames sent"), LMIC.getSeqnoUp());
+        EEPROMStoring store;
+        store.store(&EEPROMVKEY, sizeof(EEPROMVKEY));
+        LMIC.saveStateWithoutTimeData(store);
+      } 
     }
     break;
   case EventType::RESET:
@@ -184,13 +222,21 @@ void setup() {
   LMIC.setClockError(MAX_CLOCK_ERROR * 2 / 100);
   // LMIC.setAntennaPowerAdjustment(-14);
 
+  EEPROMRetrieve store;
+  unsigned int vkey;
+  store.retrieve(&vkey, sizeof(vkey));
+  if (vkey == EEPROMVKEY) {
+    PRINT_DEBUG(1, F("Restoring state from EEPROM"));
+    LMIC.loadStateWithoutTimeData(store);
+  }
+
   // Only work with special boot loader.
-  // configure_wdt();
+  configure_wdt();
 
   // test duration and in case of reboot loop  prevent flood
   // testDuration(1000);
-  testDuration(8000);
-  // testDuration(30000);
+  // testDuration(8000);
+  testDuration(30000);
 
   // Start job (sending automatically starts OTAA too)
   nextSend = os_getTime();
